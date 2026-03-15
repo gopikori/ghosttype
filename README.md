@@ -187,6 +187,9 @@ ghosttype/
 ├── client/
 │   ├── ghosttype.html           # Browser-based remote control
 │   └── ghosttype.sh             # CLI client for sending commands
+├── lib/                         # External dependencies (not checked in)
+│   ├── *.uf2                    # CircuitPython firmware and flash_nuke
+│   └── adafruit-bundle-10x/    # CircuitPython library bundle
 ├── docs/
 │   ├── images/
 │   │   ├── rpi-pico2w.jpg
@@ -201,7 +204,8 @@ ghosttype/
 1. **boot.py** runs at power-on and configures the Pico to appear as a USB keyboard only (disabling storage and serial)
 2. **code.py** connects to Wi-Fi, advertises `pico-kbd.local` via mDNS, and starts an HTTP server on port 80
 3. When a REST request arrives (e.g. `POST /type`), the Pico sends the corresponding USB HID keystrokes
-4. The target computer receives them as normal keyboard input
+4. The onboard LED flashes briefly on each keystroke as visual confirmation
+5. The target computer receives them as normal keyboard input
 
 ## Important Notes
 
@@ -231,8 +235,19 @@ Once `boot.py` is active, the CIRCUITPY drive is hidden. To edit files again:
 2. **Hold the BOOTSEL button** (the larger button on the board)
 3. **While holding it**, plug the USB cable into your Mac
 4. **Release** the button — a drive called **RP2350** appears
-5. Copy the CircuitPython `.uf2` firmware file to the RP2350 drive
-6. The Pico reboots and the **CIRCUITPY** drive reappears with all your files intact
+5. **Erase the flash** using `picotool` (install via `brew install picotool`):
+   ```bash
+   picotool erase --all -f
+   ```
+   > **Why not just re-flash the `.uf2`?** Re-flashing CircuitPython preserves the existing filesystem, so `boot.py` survives and hides USB storage again on reboot. A full erase wipes the filesystem including `boot.py`.
+6. The Pico reboots back into BOOTSEL mode — **flash CircuitPython**:
+   ```bash
+   picotool load adafruit-circuitpython-raspberry_pi_pico2_w-en_US-*.uf2 -f
+   picotool reboot
+   ```
+7. The **CIRCUITPY** drive appears with a clean filesystem
+8. Re-copy your libraries (`adafruit_hid/`, `adafruit_httpserver/`), `settings.toml`, and `code.py`
+9. Test **without** `boot.py` first, then deploy `boot.py` last to lock it down
 
 This always works regardless of what software is on the device — BOOTSEL is a hardware-level recovery built into the RP2350 chip.
 
