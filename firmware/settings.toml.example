@@ -1,0 +1,6 @@
+# GhostType Wi-Fi Configuration
+# Copy this file to settings.toml and fill in your credentials.
+# NEVER commit settings.toml to version control.
+
+CIRCUITPY_WIFI_SSID = "YourNetworkName"
+CIRCUITPY_WIFI_PASSWORD = "YourPassword"

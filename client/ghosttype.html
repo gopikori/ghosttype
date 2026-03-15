@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostType</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 24px;
+    width: 380px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  h1 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 16px;
+  }
+  .host-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .host-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #eee;
+    font-size: 13px;
+  }
+  .host-row button {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    background: #533483;
+    color: #eee;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .host-row button:hover { background: #6b44a0; }
+  .status {
+    font-size: 11px;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #0f3460;
+  }
+  .status.ok { color: #4ecca3; }
+  .status.err { color: #e94560; }
+  .status.pending { color: #f5a623; }
+  textarea {
+    width: 100%;
+    height: 80px;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #eee;
+    font-size: 14px;
+    resize: vertical;
+    margin-bottom: 12px;
+  }
+  textarea:focus { outline: 1px solid #4ecca3; }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-row button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-send {
+    background: #4ecca3;
+    color: #1a1a2e;
+  }
+  .btn-send:hover { background: #3dbb91; }
+  .btn-enter {
+    background: #e94560;
+    color: #fff;
+    flex: 0.4;
+  }
+  .btn-enter:hover { background: #d63851; }
+  .shortcuts {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .shortcuts button {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .shortcuts button:hover { background: #1a4a8a; color: #fff; }
+  .hint {
+    font-size: 11px;
+    color: #555;
+    margin-top: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>GhostType</h1>
+  <div class="subtitle">Wi-Fi Keyboard Remote</div>
+
+  <div class="host-row">
+    <input type="text" id="host" value="http://pico-kbd.local" placeholder="http://pico-kbd.local">
+    <button onclick="checkStatus()">Connect</button>
+  </div>
+  <div id="status" class="status pending">Not connected</div>
+
+  <textarea id="text" placeholder="Type here, then click Send..."></textarea>
+
+  <div class="btn-row">
+    <button class="btn-send" onclick="sendType()">Send</button>
+    <button class="btn-enter" onclick="sendKey('ENTER')">Enter</button>
+  </div>
+
+  <div class="shortcuts">
+    <button onclick="sendKey('TAB')">Tab</button>
+    <button onclick="sendKey('ESCAPE')">Esc</button>
+    <button onclick="sendKey('BACKSPACE')">Bksp</button>
+    <button onclick="sendKey('UP_ARROW')">Up</button>
+    <button onclick="sendKey('DOWN_ARROW')">Down</button>
+    <button onclick="sendCombo(['CONTROL','A'])">Ctrl+A</button>
+    <button onclick="sendCombo(['CONTROL','C'])">Ctrl+C</button>
+    <button onclick="sendCombo(['CONTROL','V'])">Ctrl+V</button>
+    <button onclick="sendCombo(['ALT','TAB'])">Alt+Tab</button>
+  </div>
+
+  <div class="hint">Tip: Ctrl+Enter to send</div>
+</div>
+
+<script>
+const hostInput = document.getElementById("host");
+const textArea = document.getElementById("text");
+const statusEl = document.getElementById("status");
+
+function getHost() {
+  return hostInput.value.replace(/\/+$/, "");
+}
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = "status " + type;
+}
+
+async function checkStatus() {
+  setStatus("Connecting...", "pending");
+  try {
+    const res = await fetch(getHost() + "/", { signal: AbortSignal.timeout(5000) });
+    const text = await res.text();
+    setStatus("Connected: " + text, "ok");
+  } catch (e) {
+    setStatus("Cannot reach " + getHost(), "err");
+  }
+}
+
+async function sendType() {
+  const text = textArea.value;
+  if (!text) return;
+  try {
+    const res = await fetch(getHost() + "/type", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text }),
+    });
+    const result = await res.text();
+    setStatus(result, "ok");
+    textArea.value = "";
+    textArea.focus();
+  } catch (e) {
+    setStatus("Send failed: " + e.message, "err");
+  }
+}
+
+async function sendKey(key) {
+  try {
+    const res = await fetch(getHost() + "/keypress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: key }),
+    });
+    const result = await res.text();
+    setStatus(result, "ok");
+  } catch (e) {
+    setStatus("Send failed: " + e.message, "err");
+  }
+}
+
+async function sendCombo(keys) {
+  try {
+    const res = await fetch(getHost() + "/combo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys: keys }),
+    });
+    const result = await res.text();
+    setStatus(result, "ok");
+  } catch (e) {
+    setStatus("Send failed: " + e.message, "err");
+  }
+}
+
+// Ctrl+Enter to send
+textArea.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    sendType();
+  }
+});
+
+// Auto-connect on load
+checkStatus();
+</script>
+
+</body>
+</html>

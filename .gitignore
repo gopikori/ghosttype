@@ -1,0 +1,20 @@
+# CircuitPython compiled files
+*.mpy
+
+# Credentials (never commit real passwords)
+settings.toml
+
+# macOS
+.DS_Store
+.metadata_never_index
+.fseventsd/
+.Spotlight-V100/
+._*
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
