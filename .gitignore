@@ -1,6 +1,9 @@
 # CircuitPython compiled files
 *.mpy
 
+# External dependencies (UF2 firmware, library bundles)
+lib/
+
 # Credentials (never commit real passwords)
 settings.toml
 
