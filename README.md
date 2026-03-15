@@ -243,18 +243,51 @@ This always works regardless of what software is on the device — BOOTSEL is a 
 | **BOOTSEL** (larger) | Hold while plugging in to enter bootloader recovery mode |
 | **RUN** (smaller) | Reboots the Pico (does NOT bypass boot.py) |
 
-### Security
-
-GhostType exposes an unauthenticated HTTP API on your local network. Anyone on the same Wi-Fi can send keystrokes.
-
-Recommendations:
-- Use on a trusted/private network only
-- Consider adding an API token (modify `code.py` to check a header)
-- Never expose to the internet
-
 ### mDNS Hostname
 
 The default hostname is `pico-kbd.local`. To change it, edit the `mdns_server.hostname` line in `code.py`. The hostname **must contain a hyphen** to work reliably with mDNS.
+
+## Security Implications
+
+GhostType is a powerful tool — it can type anything on any computer it's plugged into. Please understand the risks before using it, even on your home network.
+
+### 1. No Authentication
+
+The REST API has **zero authentication**. Anyone on the same Wi-Fi network can send keystrokes to the target computer without any password or token:
+
+```bash
+curl -X POST http://pico-kbd.local/type -d '{"text":"anything"}'
+```
+
+This includes guests on your Wi-Fi, compromised IoT devices, or any other device on the network.
+
+### 2. Plaintext HTTP
+
+All traffic between your computer and the Pico is **unencrypted HTTP**. Anyone sniffing your network can see exactly what you are typing through GhostType. The Pico does not have the resources to support HTTPS/TLS.
+
+### 3. CORS Wildcard
+
+The firmware uses `Access-Control-Allow-Origin: *` so that the browser-based client works. This means if you visit a **malicious website** from any device on your network, that website's JavaScript could silently send keystrokes to `pico-kbd.local` through your browser — without you knowing.
+
+### 4. Wi-Fi Credentials on the Device
+
+Your Wi-Fi password is stored in **plaintext** in `settings.toml` on the Pico's flash memory. Anyone with physical access to the Pico can hold BOOTSEL, re-flash CircuitPython, and read your Wi-Fi password.
+
+### 5. No Rate Limiting
+
+There is no throttling or rate limiting on the API. A malicious actor could flood the Pico with thousands of keypress requests.
+
+### 6. The Target PC Cannot Distinguish GhostType from a Real Keyboard
+
+The target computer sees a standard USB keyboard. There is no way for it to tell the difference between GhostType keystrokes and a human typing. Antivirus and endpoint protection will not flag the keystrokes.
+
+### Recommendations
+
+- **Use on a trusted/private network only** — your Wi-Fi password is the primary security barrier
+- **Never expose to the internet** — GhostType should only be reachable on your local network
+- **Be aware of physical access risks** — anyone who can touch the Pico can read your Wi-Fi credentials
+- **Consider adding an API token** — modify `code.py` to check for a secret header or query parameter before accepting commands
+- **Disconnect when not in use** — unplug the Pico from the target computer when you don't need it
 
 ## License
 
