@@ -6,6 +6,8 @@ Runs on Raspberry Pi Pico 2W with CircuitPython.
 """
 
 import os
+import board
+import digitalio
 import wifi
 import socketpool
 import mdns
@@ -28,12 +30,26 @@ CORS_HEADERS = {
 kbd = Keyboard(usb_hid.devices)
 layout = KeyboardLayoutUS(kbd)
 
-# --- Wi-Fi connection ---
+# --- Wi-Fi connection (must happen before LED setup on Pico 2W) ---
 ssid = os.getenv("CIRCUITPY_WIFI_SSID")
 print("Connecting to Wi-Fi: " + ssid)
 wifi.radio.connect(ssid, os.getenv("CIRCUITPY_WIFI_PASSWORD"))
 ip = str(wifi.radio.ipv4_address)
 print("Connected! IP: " + ip)
+
+# --- Onboard LED setup (after Wi-Fi, since LED is on the CYW43439 chip) ---
+led = digitalio.DigitalInOut(board.LED)
+led.direction = digitalio.Direction.OUTPUT
+led.value = False
+
+LED_FLASH_DURATION = 0.05  # seconds
+
+
+def flash_led():
+    """Briefly flash the onboard LED to indicate a keystroke."""
+    led.value = True
+    time.sleep(LED_FLASH_DURATION)
+    led.value = False
 
 # --- mDNS ---
 mdns_server = mdns.Server(wifi.radio)
@@ -68,6 +84,7 @@ def handle_type(request: Request):
     text = body.get("text", "")
     if text:
         layout.write(text)
+        flash_led()
     return cors_response(request, "OK: typed " + str(len(text)) + " chars")
 
 
@@ -81,6 +98,7 @@ def handle_keypress(request: Request):
     keycode = getattr(Keycode, key_name, None)
     if keycode is not None:
         kbd.send(keycode)
+        flash_led()
         return cors_response(request, "OK: " + key_name)
     return cors_response(request, "Unknown key: " + key_name, status=(400, "Bad Request"))
 
@@ -100,6 +118,7 @@ def handle_combo(request: Request):
         keycodes.append(kc)
     if keycodes:
         kbd.send(*keycodes)
+        flash_led()
     return cors_response(request, "OK: combo " + "+".join(keys))
 
 
