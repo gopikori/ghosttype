@@ -78,38 +78,27 @@
     margin-bottom: 12px;
   }
   textarea:focus { outline: 1px solid #4ecca3; }
-  .btn-row {
-    display: flex;
-    gap: 8px;
-  }
-  .btn-row button {
-    flex: 1;
+  .btn-send {
+    display: block;
+    width: 100%;
     padding: 10px;
     border-radius: 6px;
     border: none;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-  }
-  .btn-send {
     background: #4ecca3;
     color: #1a1a2e;
   }
   .btn-send:hover { background: #3dbb91; }
-  .btn-enter {
-    background: #e94560;
-    color: #fff;
-    flex: 0.4;
-  }
-  .btn-enter:hover { background: #d63851; }
   .shortcuts {
     margin-top: 12px;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
   }
   .shortcuts button {
-    padding: 6px 10px;
+    padding: 6px 4px;
     border-radius: 6px;
     border: 1px solid #333;
     background: #0f3460;
@@ -118,6 +107,13 @@
     font-size: 11px;
   }
   .shortcuts button:hover { background: #1a4a8a; color: #fff; }
+  .shortcuts .spacer { background: none; border: none; pointer-events: none; }
+  .btn-enter {
+    background: #e94560 !important;
+    border-color: #e94560 !important;
+    color: #fff !important;
+  }
+  .btn-enter:hover { background: #d63851 !important; }
   .hint {
     font-size: 11px;
     color: #555;
@@ -140,21 +136,26 @@
 
   <textarea id="text" placeholder="Type here, then click Send..."></textarea>
 
-  <div class="btn-row">
-    <button class="btn-send" onclick="sendType()">Send</button>
-    <button class="btn-enter" onclick="sendKey('ENTER')">Enter</button>
-  </div>
+  <button class="btn-send" onclick="sendType()">Send</button>
 
   <div class="shortcuts">
-    <button onclick="sendKey('TAB')">Tab</button>
+    <!-- Row 2: Esc left, Enter right (spanning 2 cols) -->
     <button onclick="sendKey('ESCAPE')">Esc</button>
+    <div class="spacer"></div>
+    <div class="spacer"></div>
+    <button class="btn-enter" style="grid-column: span 2;" onclick="sendKey('ENTER')">Enter</button>
+    <!-- Row 3: Tab + Fast Tab left, Backspace + ↑ right -->
+    <button onclick="sendKey('TAB')">Tab</button>
+    <button onclick="sendCombo(['ALT','TAB'])">Fast Tab</button>
+    <div class="spacer"></div>
     <button onclick="sendKey('BACKSPACE')">Bksp</button>
-    <button onclick="sendKey('UP_ARROW')">Up</button>
-    <button onclick="sendKey('DOWN_ARROW')">Down</button>
+    <button onclick="sendKey('UP_ARROW')">↑</button>
+    <!-- Row 4: 5 evenly spread -->
     <button onclick="sendCombo(['CONTROL','A'])">Ctrl+A</button>
     <button onclick="sendCombo(['CONTROL','C'])">Ctrl+C</button>
     <button onclick="sendCombo(['CONTROL','V'])">Ctrl+V</button>
-    <button onclick="sendCombo(['ALT','TAB'])">Alt+Tab</button>
+    <button onclick="sendCombo(['CONTROL','ALT','DELETE'])">Alt+Ctrl+Del</button>
+    <button onclick="sendKey('DOWN_ARROW')">↓</button>
   </div>
 
   <div class="hint">Tip: Ctrl+Enter to send</div>
