@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KeepAlive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060a08;
+    --panel: #0b120e;
+    --panel-edge: #18241d;
+    --ink: #d7e8dd;
+    --dim: #57695e;
+    --faint: #2a3830;
+    --accent: #3df59b;
+    --accent-glow: rgba(61, 245, 155, 0.45);
+    --fail: #ff5d5d;
+    --warn: #ffb454;
+  }
+  body.test-mode {
+    --accent: #ffb454;
+    --accent-glow: rgba(255, 180, 84, 0.45);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    background:
+      radial-gradient(ellipse 120% 90% at 50% -10%, #0c1710 0%, var(--bg) 60%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    transition: --accent 0.3s;
+  }
+  /* faint scanlines over everything */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, transparent 0 2px, rgba(0, 0, 0, 0.18) 2px 3px);
+  }
+  .monitor {
+    width: 430px;
+    max-width: 100%;
+    background: linear-gradient(175deg, #0d1510 0%, var(--panel) 40%);
+    border: 1px solid var(--panel-edge);
+    border-radius: 16px;
+    padding: 22px 22px 18px;
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    color: var(--ink);
+  }
+  h1 .bolt { color: var(--accent); }
+  .pulse-dot {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--faint);
+    transition: background 0.3s;
+  }
+  .pulse-dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+  .pulse-dot.fail { background: var(--fail); box-shadow: 0 0 8px rgba(255, 93, 93, 0.5); }
+  .pulse-dot .ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    opacity: 0;
+  }
+  .pulse-dot.beat .ring { animation: ping 0.9s ease-out; }
+  @keyframes ping {
+    0% { transform: scale(0.5); opacity: 0.9; }
+    100% { transform: scale(2.6); opacity: 0; }
+  }
+
+  /* ---------- ECG strip ---------- */
+  .ecg-wrap {
+    position: relative;
+    border: 1px solid var(--faint);
+    border-radius: 10px;
+    background:
+      linear-gradient(rgba(61, 245, 155, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61, 245, 155, 0.025) 1px, transparent 1px),
+      #070d0a;
+    background-size: 14px 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  canvas { display: block; width: 100%; height: 88px; }
+  .ecg-badge {
+    position: absolute;
+    top: 7px;
+    right: 9px;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    background: rgba(7, 13, 10, 0.75);
+    border: 1px solid var(--faint);
+    border-radius: 4px;
+    padding: 3px 7px;
+  }
+
+  /* ---------- readouts ---------- */
+  .readouts {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .cell {
+    border: 1px solid var(--faint);
+    border-radius: 10px;
+    padding: 10px 12px 9px;
+    background: rgba(255, 255, 255, 0.012);
+  }
+  .cell .label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    margin-bottom: 6px;
+  }
+  .cell .value {
+    font-size: 19px;
+    font-weight: 500;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .cell .value .unit { font-size: 11px; color: var(--dim); }
+  #sentValue .ok { color: var(--accent); }
+  #sentValue .bad { color: var(--fail); }
+  #sentValue .sep { color: var(--faint); }
+
+  /* ---------- timeline ---------- */
+  .timeline {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 26px;
+    margin-bottom: 16px;
+    padding: 0 2px;
+  }
+  .tick {
+    flex: 1;
+    max-width: 12px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--faint);
+    transition: height 0.25s ease, background 0.25s;
+  }
+  .tick.ok { background: var(--accent); height: 18px; opacity: 0.9; }
+  .tick.bad { background: var(--fail); height: 18px; }
+  .tick.ok.latest { box-shadow: 0 0 8px var(--accent-glow); height: 24px; }
+  .tick.bad.latest { box-shadow: 0 0 8px rgba(255, 93, 93, 0.5); height: 24px; }
+
+  .divider {
+    border: none;
+    border-top: 1px dashed var(--faint);
+    margin: 0 -4px 16px;
+  }
+
+  /* ---------- controls ---------- */
+  .host-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .host-row input {
+    flex: 1;
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--faint);
+    background: #081009;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 12px;
+  }
+  .host-row input:focus { outline: none; border-color: var(--accent); }
+  .host-row button {
+    padding: 9px 13px;
+    border-radius: 8px;
+    border: 1px solid var(--faint);
+    background: transparent;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+  }
+  .host-row button:hover { color: var(--ink); border-color: var(--dim); }
+
+  .interval-block { margin-bottom: 18px; }
+  .interval-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .interval-head .label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+  }
+  .interval-head .range-readout {
+    font-size: 12px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .dual-slider {
+    position: relative;
+    height: 18px;
+  }
+  .dual-slider .rail, .dual-slider .fill {
+    position: absolute;
+    top: 7px;
+    height: 4px;
+    border-radius: 2px;
+  }
+  .dual-slider .rail { left: 0; right: 0; background: var(--faint); }
+  .dual-slider .fill { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+  .dual-slider input[type="range"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    pointer-events: none;
+    margin: 0;
+  }
+  .dual-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0b120e;
+    border: 2px solid var(--accent);
+    cursor: grab;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  .dual-slider input[type="range"]::-moz-range-thumb {
+    pointer-events: auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #0b120e;
+    border: 2px solid var(--accent);
+    cursor: grab;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .switch-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .switch {
+    position: relative;
+    width: 34px;
+    height: 19px;
+    border-radius: 10px;
+    background: var(--faint);
+    transition: background 0.25s;
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2.5px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--dim);
+    transition: transform 0.25s, background 0.25s;
+  }
+  .switch-row input { display: none; }
+  .switch-row input:checked + .switch { background: rgba(255, 180, 84, 0.35); }
+  .switch-row input:checked + .switch::after {
+    transform: translateX(14px);
+    background: var(--warn);
+  }
+  .switch-row .switch-label {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+  }
+  .switch-row input:checked ~ .switch-label { color: var(--warn); }
+
+  .btn-run {
+    flex: 1;
+    max-width: 190px;
+    padding: 11px 0;
+    border-radius: 9px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #06120b;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-run:hover { box-shadow: 0 0 16px var(--accent-glow); }
+  .btn-run.running {
+    background: transparent;
+    color: var(--accent);
+  }
+
+  .statusline {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+    min-height: 14px;
+  }
+  .statusline.err { color: var(--fail); }
+  .statusline.ok { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="monitor">
+  <header>
+    <h1><span class="bolt">⌁</span> KEEPALIVE</h1>
+    <div class="pulse-dot" id="pulseDot"><div class="ring"></div></div>
+  </header>
+
+  <div class="ecg-wrap">
+    <canvas id="ecg"></canvas>
+    <div class="ecg-badge" id="keyBadge">F13</div>
+  </div>
+
+  <div class="readouts">
+    <div class="cell">
+      <div class="label">LAST BEAT</div>
+      <div class="value" id="lastValue">&mdash;</div>
+    </div>
+    <div class="cell">
+      <div class="label">NEXT IN</div>
+      <div class="value" id="nextValue">&mdash;</div>
+    </div>
+    <div class="cell">
+      <div class="label">SENT</div>
+      <div class="value" id="sentValue"><span class="ok">0</span><span class="sep">/</span><span class="bad">0</span></div>
+    </div>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+
+  <hr class="divider">
+
+  <div class="host-row">
+    <input type="text" id="host" value="http://pico-kbd.local" placeholder="http://pico-kbd.local">
+    <button id="checkBtn">PING</button>
+  </div>
+
+  <div class="interval-block">
+    <div class="interval-head">
+      <span class="label">RANDOM INTERVAL</span>
+      <span class="range-readout" id="rangeReadout"></span>
+    </div>
+    <div class="dual-slider">
+      <div class="rail"></div>
+      <div class="fill" id="sliderFill"></div>
+      <input type="range" id="minSlider" min="10" max="300" step="5">
+      <input type="range" id="maxSlider" min="10" max="300" step="5">
+    </div>
+  </div>
+
+  <div class="bottom-row">
+    <label class="switch-row">
+      <input type="checkbox" id="testMode">
+      <span class="switch"></span>
+      <span class="switch-label">TEST MODE</span>
+    </label>
+    <button class="btn-run" id="runBtn">START</button>
+  </div>
+
+  <div class="statusline" id="statusline">idle &mdash; press START to begin</div>
+</div>
+
+<script>
+"use strict";
+
+const SETTINGS_KEY = "keepalive_settings";
+const LIVE_KEY = "F13";   // unassigned on macOS, still resets the idle timer
+const TEST_KEY = "H";     // visible in a text editor for testing
+const MAX_TICKS = 28;     // beats shown in the timeline
+
+const $ = (id) => document.getElementById(id);
+const hostInput = $("host");
+const minSlider = $("minSlider");
+const maxSlider = $("maxSlider");
+
+let running = false;
+let sending = false;
+let nextAt = null;        // wall-clock ms of next beat
+let lastBeat = null;      // { t, ok }
+let okCount = 0, failCount = 0;
+const beats = [];         // last MAX_TICKS results
+
+// ---------- settings ----------
+function loadSettings() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (e) {}
+  hostInput.value = s.host || "http://pico-kbd.local";
+  minSlider.value = s.minSec || 30;
+  maxSlider.value = s.maxSec || 90;
+}
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    host: hostInput.value,
+    minSec: +minSlider.value,
+    maxSec: +maxSlider.value,
+  }));
+}
+
+// ---------- interval slider ----------
+function fmtDur(sec) {
+  if (sec < 60) return sec + "s";
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return s ? m + "m " + s + "s" : m + "m";
+}
+function syncSlider(moved) {
+  let lo = +minSlider.value, hi = +maxSlider.value;
+  if (lo > hi) {
+    if (moved === minSlider) { hi = lo; maxSlider.value = hi; }
+    else { lo = hi; minSlider.value = lo; }
+  }
+  const span = minSlider.max - minSlider.min;
+  const left = ((lo - minSlider.min) / span) * 100;
+  const right = ((hi - minSlider.min) / span) * 100;
+  const fill = $("sliderFill");
+  fill.style.left = left + "%";
+  fill.style.width = (right - left) + "%";
+  $("rangeReadout").textContent = fmtDur(lo) + " – " + fmtDur(hi);
+  saveSettings();
+}
+minSlider.addEventListener("input", () => syncSlider(minSlider));
+maxSlider.addEventListener("input", () => syncSlider(maxSlider));
+
+// ---------- ECG sweep ----------
+const canvas = $("ecg");
+const ctx = canvas.getContext("2d");
+let sweepX = 0;
+const blipQueue = [];   // pending y-offsets to draw ahead of the cursor
+
+// classic PQRST-ish waveform as baseline offsets (px, negative = up)
+const WAVEFORM = [0, -2, -4, -2, 0, 0, 3, -26, 14, -3, 0, 0, -2, -5, -6, -5, -2, 0];
+
+function sizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "rgba(7,13,10,1)";
+  ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  sweepX = 0;
+}
+window.addEventListener("resize", sizeCanvas);
+
+function accentColor() {
+  return getComputedStyle(document.body).getPropertyValue("--accent").trim();
+}
+
+let lastFrame = 0;
+function drawECG(ts) {
+  requestAnimationFrame(drawECG);
+  if (ts - lastFrame < 16) return;
+  lastFrame = ts;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const baseY = h * 0.62;
+  const speed = 1.6; // px per frame
+
+  for (let i = 0; i < speed; i++) {
+    sweepX += 1;
+    if (sweepX >= w) sweepX = 0;
+    // erase bar ahead of the cursor
+    ctx.fillStyle = "rgba(7,13,10,1)";
+    ctx.fillRect(sweepX, 0, 14, h);
+    // y offset: blip if queued, else faint noise
+    const off = blipQueue.length ? blipQueue.shift()
+      : (Math.sin(sweepX * 1.7) * 0.6);
+    ctx.fillStyle = accentColor();
+    ctx.fillRect(sweepX, baseY + off, 1.6, 1.6);
+  }
+}
+
+function triggerBlip() {
+  // stretch waveform: 3px per sample
+  for (const off of WAVEFORM) { blipQueue.push(off, off, off); }
+}
+
+// ---------- heartbeat ----------
+function currentKey() {
+  return $("testMode").checked ? TEST_KEY : LIVE_KEY;
+}
+function randInterval() {
+  const lo = +minSlider.value * 1000, hi = +maxSlider.value * 1000;
+  return lo + Math.random() * (hi - lo);
+}
+function getHostUrl() {
+  return hostInput.value.replace(/\/+$/, "");
+}
+function setStatus(msg, cls) {
+  const el = $("statusline");
+  el.textContent = msg;
+  el.className = "statusline " + (cls || "");
+}
+
+async function sendBeat() {
+  if (sending) return;
+  sending = true;
+  const key = currentKey();
+  const dot = $("pulseDot");
+  dot.classList.remove("beat");
+  void dot.offsetWidth; // restart ping animation
+  dot.classList.add("beat");
+  triggerBlip();
+
+  let ok = false, detail = "";
+  try {
+    const res = await fetch(getHostUrl() + "/keypress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: key }),
+      // generous timeout: .local lookups can stall ~5s waiting for a
+      // never-answered IPv6 (AAAA) query before falling back to IPv4
+      signal: AbortSignal.timeout(12000),
+    });
+    detail = await res.text();
+    ok = res.ok;
+  } catch (e) {
+    detail = e.name === "TimeoutError" ? "timeout" : e.message;
+  }
+
+  lastBeat = { t: Date.now(), ok };
+  ok ? okCount++ : failCount++;
+  beats.push(ok);
+  if (beats.length > MAX_TICKS) beats.shift();
+  renderTimeline();
+  $("sentValue").innerHTML =
+    '<span class="ok">' + okCount + '</span><span class="sep">/</span><span class="bad">' + failCount + "</span>";
+
+  dot.classList.toggle("live", ok);
+  dot.classList.toggle("fail", !ok);
+  const at = new Date(lastBeat.t).toLocaleTimeString();
+  setStatus(ok ? "sent " + key + " at " + at : "FAILED at " + at + " — " + detail, ok ? "ok" : "err");
+
+  if (running) {
+    const wait = randInterval();
+    nextAt = Date.now() + wait;
+  }
+  sending = false;
+}
+
+// ---------- timeline ----------
+function renderTimeline() {
+  const tl = $("timeline");
+  tl.innerHTML = "";
+  for (let i = 0; i < MAX_TICKS; i++) {
+    const tick = document.createElement("div");
+    tick.className = "tick";
+    const idx = i - (MAX_TICKS - beats.length);
+    if (idx >= 0) {
+      tick.classList.add(beats[idx] ? "ok" : "bad");
+      if (idx === beats.length - 1) tick.classList.add("latest");
+    }
+    tl.appendChild(tick);
+  }
+}
+
+// ---------- readouts (driven by wall clock, robust to tab throttling) ----------
+function fmtClock(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+function tick() {
+  if (lastBeat) {
+    $("lastValue").innerHTML = fmtClock(Date.now() - lastBeat.t) + ' <span class="unit">ago</span>';
+  }
+  if (running && nextAt) {
+    $("nextValue").textContent = fmtClock(nextAt - Date.now());
+    if (Date.now() >= nextAt && !sending) sendBeat();
+  } else {
+    $("nextValue").innerHTML = "&mdash;";
+  }
+}
+setInterval(tick, 250);
+
+// ---------- controls ----------
+$("runBtn").addEventListener("click", () => {
+  running = !running;
+  const btn = $("runBtn");
+  btn.textContent = running ? "PAUSE" : "START";
+  btn.classList.toggle("running", running);
+  if (running) {
+    sendBeat(); // immediate first beat, then random schedule
+  } else {
+    nextAt = null;
+    $("pulseDot").className = "pulse-dot";
+    setStatus("paused", "");
+  }
+});
+
+$("testMode").addEventListener("change", (e) => {
+  document.body.classList.toggle("test-mode", e.target.checked);
+  $("keyBadge").textContent = currentKey();
+  setStatus(e.target.checked
+    ? "TEST MODE — sending '" + TEST_KEY + "' (visible in a text editor)"
+    : "live — sending " + LIVE_KEY, "");
+});
+
+$("checkBtn").addEventListener("click", async () => {
+  setStatus("pinging " + getHostUrl() + " …", "");
+  try {
+    const res = await fetch(getHostUrl() + "/", { signal: AbortSignal.timeout(10000) });
+    setStatus("connected: " + (await res.text()), "ok");
+  } catch (e) {
+    setStatus("cannot reach " + getHostUrl(), "err");
+  }
+});
+hostInput.addEventListener("change", saveSettings);
+
+// ---------- init ----------
+loadSettings();
+syncSlider();
+renderTimeline();
+sizeCanvas();
+requestAnimationFrame(drawECG);
+</script>
+</body>
+</html>

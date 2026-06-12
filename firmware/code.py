@@ -34,6 +34,10 @@ layout = KeyboardLayoutUS(kbd)
 ssid = os.getenv("CIRCUITPY_WIFI_SSID")
 print("Connecting to Wi-Fi: " + ssid)
 wifi.radio.connect(ssid, os.getenv("CIRCUITPY_WIFI_PASSWORD"))
+# Keep the radio always-on (set after connect, which can reset it):
+# power-save mode drops multicast frames, making mDNS (pico-kbd.local)
+# resolution unreliable.
+wifi.radio.power_management = wifi.PowerManagement.NONE
 ip = str(wifi.radio.ipv4_address)
 print("Connected! IP: " + ip)
 

@@ -138,6 +138,30 @@ Features:
 
 To use: open the file in your browser, click **Connect**, type your text, and hit **Send**.
 
+> **Chrome/Edge note:** Recent Chromium-based browsers block local-network requests from pages opened via `file://` (Local Network Access enforcement), silently failing with "cannot reach". Either use Safari, serve the file from `localhost` (`python3 -m http.server` in `client/`), or disable the enforcement flag: `chrome://flags/#local-network-access-check` (Chrome) / `edge://flags/#local-network-access-check` (Edge).
+
+## Keep Alive Monitor
+
+`client/keepalive.html` is a standalone dashboard that keeps the target computer awake by sending a harmless keystroke at randomized intervals.
+
+![Keep Alive Monitor](docs/images/keepalive-monitor.png)
+
+Features:
+- **F13 heartbeat** — unassigned on macOS, so it resets the system idle timer without typing anything or triggering any action
+- **Randomized interval** — each beat is scheduled at a random delay within a configurable range (default 30s–1m 30s, set via a dual-thumb slider), so the input pattern doesn't look machine-generated
+- **Live monitor UI** — ECG-style trace that blips on every keystroke, time since last beat, countdown to the next one, and success/failure counters
+- **Beat timeline** — the last 28 heartbeats as ticks, green for delivered, red for failed
+- **Test Mode** — switches the keystroke from `F13` to a visible `H` (the whole UI turns amber as a reminder); open a text editor on the target machine to watch the heartbeats arrive
+- Host and interval settings persist in localStorage
+
+To use: open the file in your browser, set the host, click **PING** to verify connectivity, and hit **START**.
+
+Running it in a background tab works — beats are scheduled on the wall clock and never lost — but browser timer throttling can delay each beat by up to a minute, stretching the effective interval to ~1–2.5 min (still well within typical sleep timeouts). What *does* stop the heartbeat is the browser unloading the inactive tab. To prevent that, add the page to:
+
+- **Chrome:** `chrome://settings/performance` → Memory Saver → "Always keep these sites active"
+- **Edge:** `edge://settings/system/managePerformance` → "Always keep these sites active"
+- **Safari:** no action needed (no tab discarding for active pages)
+
 ## CLI Client
 
 A convenience shell script is included:
@@ -186,6 +210,7 @@ ghosttype/
 │   └── settings.toml.example    # Wi-Fi credentials template
 ├── client/
 │   ├── ghosttype.html           # Browser-based remote control
+│   ├── keepalive.html           # Keep-awake heartbeat monitor
 │   └── ghosttype.sh             # CLI client for sending commands
 ├── lib/                         # External dependencies (not checked in)
 │   ├── *.uf2                    # CircuitPython firmware and flash_nuke
@@ -261,6 +286,8 @@ This always works regardless of what software is on the device — BOOTSEL is a 
 ### mDNS Hostname
 
 The default hostname is `pico-kbd.local`. To change it, edit the `mdns_server.hostname` line in `code.py`. The hostname **must contain a hyphen** to work reliably with mDNS.
+
+If `pico-kbd.local` resolves intermittently (or only by IP), the cause is usually Wi-Fi **power-save mode** on the Pico: the sleeping radio misses the multicast packets that mDNS queries are sent over. `code.py` disables it after connecting (`wifi.radio.power_management = wifi.PowerManagement.NONE`) — this also cuts request latency from ~100ms to ~6ms.
 
 ## Security Implications
 
