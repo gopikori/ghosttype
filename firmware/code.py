@@ -76,8 +76,27 @@ def cors_response(request, body="OK", status=None):
     return Response(request, body, headers=CORS_HEADERS)
 
 
-@server.route("/", [POST, "OPTIONS", "GET"])
+# --- Control page (served over Wi-Fi; the USB side stays keyboard-only) ---
+# The page lives on the Pico's flash. boot.py hides the USB drive from the
+# host, but CircuitPython can still read its own files to serve them.
+try:
+    with open("index.html", "r") as f:
+        INDEX_HTML = f.read()
+except OSError:
+    INDEX_HTML = "<h1>GhostType</h1><p>index.html missing on device.</p>"
+
+
+@server.route("/", ["GET", "OPTIONS"])
 def handle_root(request: Request):
+    """Serve the browser control page. Open http://<host>/ on any device."""
+    if request.method == "OPTIONS":
+        return cors_response(request, "")
+    return Response(request, INDEX_HTML, content_type="text/html", headers=CORS_HEADERS)
+
+
+@server.route("/status", ["GET", "OPTIONS"])
+def handle_status(request: Request):
+    """Plain-text health check used by the control page's status line."""
     if request.method == "OPTIONS":
         return cors_response(request, "")
     return cors_response(request, "GhostType Ready - IP: " + ip)
