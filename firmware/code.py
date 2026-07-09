@@ -56,10 +56,14 @@ def flash_led():
     led.value = False
 
 # --- mDNS ---
+# Hostname is configurable via settings.toml (MDNS_HOSTNAME) so multiple
+# keyboards can share this firmware without colliding on the network.
+# Defaults to "pico-kbd" to preserve the original single-device behaviour.
+hostname = os.getenv("MDNS_HOSTNAME") or "pico-kbd"
 mdns_server = mdns.Server(wifi.radio)
-mdns_server.hostname = "pico-kbd"
+mdns_server.hostname = hostname
 mdns_server.advertise_service(service_type="_http", protocol="_tcp", port=80)
-print("Reachable at: http://pico-kbd.local")
+print("Reachable at: http://" + hostname + ".local")
 
 # --- HTTP server ---
 pool = socketpool.SocketPool(wifi.radio)

@@ -80,11 +80,15 @@ cp firmware/boot.py /Volumes/CIRCUITPY/
 cp firmware/settings.toml.example /Volumes/CIRCUITPY/settings.toml
 ```
 
-Edit `CIRCUITPY/settings.toml` with your Wi-Fi credentials:
+Edit `CIRCUITPY/settings.toml` with your Wi-Fi credentials (and, optionally, a hostname):
 
 ```toml
 CIRCUITPY_WIFI_SSID = "YourNetworkName"
 CIRCUITPY_WIFI_PASSWORD = "YourPassword"
+
+# Optional: reachable at http://<MDNS_HOSTNAME>.local (defaults to "pico-kbd")
+# Give each board a unique name to run several keyboards side by side.
+MDNS_HOSTNAME = "pico-kbd"
 ```
 
 ### 4. Connect and Use
@@ -285,7 +289,7 @@ This always works regardless of what software is on the device — BOOTSEL is a 
 
 ### mDNS Hostname
 
-The default hostname is `pico-kbd.local`. To change it, edit the `mdns_server.hostname` line in `code.py`. The hostname **must contain a hyphen** to work reliably with mDNS.
+The default hostname is `pico-kbd.local`. To change it, set `MDNS_HOSTNAME` in `settings.toml` (no code edit needed) — e.g. `MDNS_HOSTNAME = "pico-kbd-2"`. Give each board a unique name to run multiple keyboards on the same network. The hostname **must contain a hyphen** to work reliably with mDNS.
 
 If `pico-kbd.local` resolves intermittently (or only by IP), the cause is usually Wi-Fi **power-save mode** on the Pico: the sleeping radio misses the multicast packets that mDNS queries are sent over. `code.py` disables it after connecting (`wifi.radio.power_management = wifi.PowerManagement.NONE`) — this also cuts request latency from ~100ms to ~6ms.
 

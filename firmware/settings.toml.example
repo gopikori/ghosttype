@@ -4,3 +4,8 @@
 
 CIRCUITPY_WIFI_SSID = "YourNetworkName"
 CIRCUITPY_WIFI_PASSWORD = "YourPassword"
+
+# mDNS hostname -> reachable at http://<MDNS_HOSTNAME>.local
+# Optional. Defaults to "pico-kbd" if omitted.
+# Use a unique value per device (e.g. "pico-kbd-2") to run multiple keyboards.
+MDNS_HOSTNAME = "pico-kbd"
